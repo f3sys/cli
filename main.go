@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/huh/spinner"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
@@ -103,7 +105,14 @@ func main() {
 		huh.NewGroup(
 			huh.NewInput().
 				Title("What's the name?").
-				Value(&name),
+				Value(&name).
+				Validate(func(s string) error {
+					if s != "" {
+						return nil
+					} else {
+						return errors.New("name empty")
+					}
+				}),
 
 			huh.NewSelect[string]().
 				Title("Choose the type").
@@ -112,18 +121,26 @@ func main() {
 					huh.NewOption("Exhibition", "EXHIBITION"),
 					huh.NewOption("Food Stall", "FOODSTALL"),
 				).
-				Value(&typeOf),
+				Value(&typeOf).
+				Validate(func(s string) error {
+					if s != "" {
+						return nil
+					} else {
+						return errors.New("type empty")
+					}
+				}),
 
 			huh.NewText().
 				Title("What's the price?").
 				CharLimit(400).
-				Value(&price).Validate(func(s string) error {
-				if _, err := strconv.Atoi(s); err != nil {
-					return err
-				} else {
-					return nil
-				}
-			}),
+				Value(&price).
+				Validate(func(s string) error {
+					if _, err := strconv.Atoi(s); err != nil {
+						return err
+					} else {
+						return nil
+					}
+				}),
 		),
 	)
 
@@ -137,11 +154,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if name != "" && typeOf != "" && price != "" {
-		if i, err := strconv.Atoi(price); err != nil {
-			log.Fatal(err)
-		} else {
+	if i, err := strconv.Atoi(price); err != nil {
+		log.Fatal(err)
+	} else {
+
+		action := func() {
 			push(name, typeOf, i)
+		}
+		err = spinner.New().Title("Pushing to Database").Action(action).Run()
+
+		if err != nil {
+			log.Fatal(err)
 		}
 	}
 }
