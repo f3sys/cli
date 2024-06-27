@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
@@ -157,14 +156,6 @@ func main() {
 	if i, err := strconv.Atoi(price); err != nil {
 		log.Fatal(err)
 	} else {
-
-		action := func() {
-			push(name, typeOf, i)
-		}
-		err = spinner.New().Title("Pushing to Database").Action(action).Run()
-
-		if err != nil {
-			log.Fatal(err)
-		}
+		push(name, typeOf, i)
 	}
 }
