@@ -36,6 +36,15 @@ type Node struct {
 	Price  int
 }
 
+var (
+	database = os.Getenv("DB_DATABASE")
+	password = os.Getenv("DB_PASSWORD")
+	username = os.Getenv("DB_USERNAME")
+	port     = os.Getenv("DB_PORT")
+	host     = os.Getenv("DB_HOST")
+	schema   = os.Getenv("DB_SCHEMA")
+)
+
 func generateRandomString(n int) (string, error) {
 	const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	ret := make([]byte, n)
@@ -51,7 +60,7 @@ func generateRandomString(n int) (string, error) {
 }
 
 func push(name string, typeOf string, price int) {
-	conn, err := pgx.Connect(context.Background(), os.Getenv("DB_URL"))
+	conn, err := pgx.Connect(context.Background(), fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable&search_path=%s", username, password, host, port, database, schema))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
@@ -81,12 +90,12 @@ func push(name string, typeOf string, price int) {
 	}
 
 	var users []*User
-	err = pgxscan.Select(context.Background(), pgTx, &users, `insert into "User" ("id", "password") values ($1, $2) returning id, password`, username, encoded)
+	err = pgxscan.Select(context.Background(), pgTx, &users, `insert into "users" ("id", "password") values ($1, $2) returning id, password`, username, encoded)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	_, err = pgTx.Exec(context.Background(), `insert into "Node" ("userId", "name", "type", "price", "updatedAt") values ($1, $2, $3, $4, now())`, username, name, typeOf, price)
+	_, err = pgTx.Exec(context.Background(), `insert into "nodes" ("userId", "name", "type", "price", "updatedAt") values ($1, $2, $3, $4, now())`, username, name, typeOf, price)
 	if err != nil {
 		log.Fatal(err)
 	}
