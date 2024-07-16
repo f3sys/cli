@@ -11,9 +11,9 @@ import (
 	"strconv"
 
 	"github.com/charmbracelet/huh"
-	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/matthewhartstonge/argon2"
 )
 
@@ -89,13 +89,7 @@ func push(name string, typeOf string, price int) {
 		log.Fatal(err)
 	}
 
-	var users []*User
-	err = pgxscan.Select(context.Background(), pgTx, &users, `insert into "users" ("id", "password") values ($1, $2) returning id, password`, username, encoded)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	_, err = pgTx.Exec(context.Background(), `insert into "nodes" ("userId", "name", "type", "price", "updatedAt") values ($1, $2, $3, $4, now())`, username, name, typeOf, price)
+	_, err = pgTx.Exec(context.Background(), `insert into "nodes" ("id", "password", "name", "type", "price") values ($1, $2, $3, $4, $5)`, username, encoded, name, typeOf, price)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -105,7 +99,9 @@ func push(name string, typeOf string, price int) {
 		log.Fatal(err)
 	}
 
-	fmt.Println(users[0].ID, password)
+	fmt.Println(username)
+	fmt.Println(password)
+	fmt.Println(encoded)
 }
 
 func main() {
