@@ -67,11 +67,6 @@ func push(name string, typeOf string, price int) {
 	}
 	defer conn.Close(context.Background())
 
-	username, err := generateRandomString(32)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	password, err := generateRandomString(32)
 	if err != nil {
 		log.Fatal(err)
@@ -89,17 +84,15 @@ func push(name string, typeOf string, price int) {
 		log.Fatal(err)
 	}
 
-	_, err = pgTx.Exec(context.Background(), `insert into "nodes" ("id", "password", "name", "type", "price") values ($1, $2, $3, $4, $5)`, username, encoded, name, typeOf, price)
-	if err != nil {
-		log.Fatal(err)
-	}
+	var id int8
+	pgTx.QueryRow(context.Background(), `insert into "nodes" ("password", "name", "type", "price") values ($1, $2, $3, $4) returning id`, encoded, name, typeOf, price).Scan(&id)
 
 	err = pgTx.Commit(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println(username)
+	fmt.Println(id)
 	fmt.Println(password)
 	fmt.Println(encoded)
 }
