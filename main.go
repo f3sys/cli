@@ -45,8 +45,7 @@ var (
 	schema   = os.Getenv("DB_SCHEMA")
 )
 
-func generateRandomString(n int) (string, error) {
-	const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+func generateRandomString(n int, letters string) (string, error) {
 	ret := make([]byte, n)
 	for i := 0; i < n; i++ {
 		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
@@ -67,7 +66,7 @@ func push(name string, typeOf string, price int) {
 	}
 	defer conn.Close(context.Background())
 
-	password, err := generateRandomString(32)
+	password, err := generateRandomString(32, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -80,11 +79,12 @@ func push(name string, typeOf string, price int) {
 	}
 
 	pgTx, err := conn.Begin(context.Background())
+	defer pgTx.Rollback(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var id int8
+	var id int64
 	pgTx.QueryRow(context.Background(), `insert into "nodes" ("password", "name", "type", "price") values ($1, $2, $3, $4) returning id`, encoded, name, typeOf, price).Scan(&id)
 
 	err = pgTx.Commit(context.Background())
