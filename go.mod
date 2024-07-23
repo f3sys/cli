@@ -1,12 +1,11 @@
 module github.com/f3sys/cli
 
-go 1.22.4
+go 1.22.5
 
 require (
 	github.com/charmbracelet/huh v0.4.2
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/joho/godotenv v1.5.1
-	github.com/matthewhartstonge/argon2 v1.0.0
 )
 
 require (
