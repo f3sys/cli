@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/matthewhartstonge/argon2"
 )
 
 var (
@@ -66,14 +65,7 @@ func push(name string, typeOf string, price int) {
 	}
 	defer conn.Close(context.Background())
 
-	password, err := generateRandomString(32, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	argon := argon2.DefaultConfig()
-
-	encoded, err := argon.HashEncoded([]byte(password))
+	key, err := generateRandomString(32, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -85,7 +77,11 @@ func push(name string, typeOf string, price int) {
 	}
 
 	var id int64
-	pgTx.QueryRow(context.Background(), `insert into "nodes" ("password", "name", "type", "price") values ($1, $2, $3, $4) returning id`, encoded, name, typeOf, price).Scan(&id)
+	pgTx.QueryRow(context.Background(), `insert into "nodes" ("key", "name", "type", "price") values ($1, $2, $3, $4) returning id`, key, name, typeOf, price).Scan(&id)
+	_, err = pgTx.Exec(context.Background(), `insert into "batteries" ("node_id") values ($1)`, id)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	err = pgTx.Commit(context.Background())
 	if err != nil {
@@ -93,8 +89,7 @@ func push(name string, typeOf string, price int) {
 	}
 
 	fmt.Println(id)
-	fmt.Println(password)
-	fmt.Println(encoded)
+	fmt.Println(key)
 }
 
 func main() {
