@@ -8,7 +8,6 @@ import (
 	"log"
 	"math/big"
 	"os"
-	"strconv"
 
 	"github.com/charmbracelet/huh"
 	"github.com/jackc/pgx/v5"
@@ -19,7 +18,6 @@ import (
 var (
 	name   string
 	typeOf string
-	price  string
 )
 
 type User struct {
@@ -57,7 +55,7 @@ func generateRandomString(n int, letters string) (string, error) {
 	return string(ret), nil
 }
 
-func push(name string, typeOf string, price int) {
+func push(name string, typeOf string) {
 	conn, err := pgx.Connect(context.Background(), fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable&search_path=%s", username, password, host, port, database, schema))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
@@ -77,7 +75,7 @@ func push(name string, typeOf string, price int) {
 	}
 
 	var id int64
-	pgTx.QueryRow(context.Background(), `insert into "nodes" ("key", "name", "type", "price") values ($1, $2, $3, $4) returning id`, key, name, typeOf, price).Scan(&id)
+	pgTx.QueryRow(context.Background(), `insert into "nodes" ("key", "name", "type") values ($1, $2, $3) returning id`, key, name, typeOf).Scan(&id)
 	_, err = pgTx.Exec(context.Background(), `insert into "batteries" ("node_id") values ($1)`, id)
 	if err != nil {
 		log.Fatal(err)
@@ -121,18 +119,6 @@ func main() {
 						return errors.New("type empty")
 					}
 				}),
-
-			huh.NewText().
-				Title("What's the price?").
-				CharLimit(400).
-				Value(&price).
-				Validate(func(s string) error {
-					if _, err := strconv.Atoi(s); err != nil {
-						return err
-					} else {
-						return nil
-					}
-				}),
 		),
 	)
 
@@ -146,9 +132,5 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if i, err := strconv.Atoi(price); err != nil {
-		log.Fatal(err)
-	} else {
-		push(name, typeOf, i)
-	}
+	push(name, typeOf)
 }
