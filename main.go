@@ -2,135 +2,218 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"errors"
 	"fmt"
 	"log"
-	"math/big"
+	"log/slog"
+	"net/netip"
 	"os"
+	"strconv"
 
 	"github.com/charmbracelet/huh"
+	"github.com/f3sys/cli/sqlc"
 	"github.com/jackc/pgx/v5"
-	"github.com/joho/godotenv"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/thanhpk/randstr"
+	"github.com/urfave/cli/v2"
+
 	_ "github.com/joho/godotenv/autoload"
 )
 
 var (
-	name   string
-	typeOf string
+	databaseURL = os.Getenv("DATABASE_URL")
 )
 
-type User struct {
-	ID       string
-	Password string
-}
+func newDatabase() *pgx.Conn {
+	db, err := pgx.Connect(context.Background(), databaseURL)
+	if err != nil {
+		slog.Default().Error("failed to create connection pool", "error", err)
+		os.Exit(1)
+	}
 
-type Node struct {
-	ID     big.Int
-	UserId string
-	Name   string
-	Type   string
-	Price  int
+	if db.Ping(context.Background()) != nil {
+		slog.Default().Error("failed to ping db", "error", err)
+		os.Exit(1)
+	}
+
+	return db
 }
 
 var (
-	database = os.Getenv("DB_DATABASE")
-	password = os.Getenv("DB_PASSWORD")
-	username = os.Getenv("DB_USERNAME")
-	port     = os.Getenv("DB_PORT")
-	host     = os.Getenv("DB_HOST")
-	schema   = os.Getenv("DB_SCHEMA")
-)
-
-func generateRandomString(n int, letters string) (string, error) {
-	ret := make([]byte, n)
-	for i := 0; i < n; i++ {
-		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
-		if err != nil {
-			return "", err
-		}
-		ret[i] = letters[num.Int64()]
-	}
-
-	return string(ret), nil
-}
-
-func push(name string, typeOf string) {
-	conn, err := pgx.Connect(context.Background(), fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable&search_path=%s", username, password, host, port, database, schema))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-		os.Exit(1)
-	}
-	defer conn.Close(context.Background())
-
-	key, err := generateRandomString(32, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	pgTx, err := conn.Begin(context.Background())
-	defer pgTx.Rollback(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var id int64
-	pgTx.QueryRow(context.Background(), `insert into "nodes" ("key", "name", "type") values ($1, $2, $3) returning id`, key, name, typeOf).Scan(&id)
-	_, err = pgTx.Exec(context.Background(), `insert into "batteries" ("node_id") values ($1)`, id)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = pgTx.Commit(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println(id)
-	fmt.Println(key)
-}
-
-func main() {
-	form := huh.NewForm(
+	nodeName     string
+	nodeType     sqlc.NodeType
+	nodeIPholder string
+	nodeIP       netip.Addr
+	nodeForm     = huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("What's the name?").
-				Value(&name).
+				Title("Node Name").
+				Value(&nodeName).
 				Validate(func(s string) error {
-					if s != "" {
-						return nil
-					} else {
-						return errors.New("name empty")
+					if s == "" {
+						return fmt.Errorf("node name cannot be empty")
 					}
+					return nil
 				}),
-
-			huh.NewSelect[string]().
-				Title("Choose the type").
+		),
+		huh.NewGroup(
+			huh.NewSelect[sqlc.NodeType]().
+				Title("Node Type").
 				Options(
-					huh.NewOption("Entry", "ENTRY"),
-					huh.NewOption("Exhibition", "EXHIBITION"),
-					huh.NewOption("Food Stall", "FOODSTALL"),
+					huh.NewOption("Entry", sqlc.NodeTypeENTRY),
+					huh.NewOption("Food Stall", sqlc.NodeTypeFOODSTALL),
+					huh.NewOption("Exhibition", sqlc.NodeTypeEXHIBITION),
 				).
-				Value(&typeOf).
+				Value(&nodeType),
+		),
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Node IP").
+				Value(&nodeIPholder).
 				Validate(func(s string) error {
-					if s != "" {
-						return nil
+					if parsedAddr, err := netip.ParseAddr(s); err != nil {
+						return fmt.Errorf("invalid IP address")
 					} else {
-						return errors.New("type empty")
+						nodeIP = parsedAddr
+						return nil
 					}
 				}),
 		),
-	)
+	).WithTheme(huh.ThemeBase16())
 
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	foodName        string
+	foodPriceholder string
+	foodPrice       int
+	foodForm        = huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Food Name").
+				Value(&foodName).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("food name cannot be empty")
+					}
+					return nil
+				}),
+		),
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Food Price").
+				Value(&foodPriceholder).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("food price cannot be empty")
+					} else {
+						if parsedPrice, err := strconv.Atoi(s); err != nil {
+							return fmt.Errorf("invalid food price")
+						} else {
+							foodPrice = parsedPrice
+							return nil
+						}
+					}
+				}),
+		),
+	).WithTheme(huh.ThemeBase16())
+)
+
+func main() {
+	app := &cli.App{
+		Commands: []*cli.Command{
+			{
+				Name:    "add",
+				Aliases: []string{"a"},
+				Usage:   "add an item",
+				Subcommands: []*cli.Command{
+					{
+						Name:    "node",
+						Aliases: []string{"n"},
+						Usage:   "add a new node",
+						Action: func(cCtx *cli.Context) error {
+							err := nodeForm.Run()
+							if err != nil {
+								log.Fatal(err)
+								os.Exit(1)
+							}
+
+							key := randstr.String(32)
+							if err != nil {
+								log.Fatal(err)
+								os.Exit(1)
+							}
+
+							db := newDatabase()
+							defer db.Close(context.Background())
+							q, err := db.Begin(context.Background())
+							if err != nil {
+								log.Fatal(err)
+								os.Exit(1)
+							}
+							defer q.Rollback(context.Background())
+							sq := sqlc.New(q)
+							_, err = sq.CreateNode(context.Background(), sqlc.CreateNodeParams{
+								Key:  pgtype.Text{String: key, Valid: true},
+								Name: nodeName,
+								Ip:   &nodeIP,
+								Type: nodeType,
+							})
+							if err != nil {
+								log.Fatal(err)
+								os.Exit(1)
+							}
+							err = q.Commit(context.Background())
+							if err != nil {
+								log.Fatal(err)
+								os.Exit(1)
+							}
+
+							fmt.Println("Node added successfully")
+							return nil
+						},
+					},
+					{
+						Name:    "food",
+						Aliases: []string{"f"},
+						Usage:   "add a new food",
+						Action: func(cCtx *cli.Context) error {
+							err := foodForm.Run()
+							if err != nil {
+								log.Fatal(err)
+								os.Exit(1)
+							}
+
+							db := newDatabase()
+							defer db.Close(context.Background())
+							q, err := db.Begin(context.Background())
+							if err != nil {
+								log.Fatal(err)
+								os.Exit(1)
+							}
+							defer q.Rollback(context.Background())
+							sq := sqlc.New(q)
+							_, err = sq.CreateFood(context.Background(), sqlc.CreateFoodParams{
+								Name:  foodName,
+								Price: int32(foodPrice),
+							})
+							if err != nil {
+								log.Fatal(err)
+								os.Exit(1)
+							}
+
+							err = q.Commit(context.Background())
+							if err != nil {
+								log.Fatal(err)
+								os.Exit(1)
+							}
+
+							fmt.Println("Food added successfully")
+							return nil
+						},
+					},
+				},
+			},
+		},
 	}
 
-	err = form.Run()
-	if err != nil {
+	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
 	}
-
-	push(name, typeOf)
 }
