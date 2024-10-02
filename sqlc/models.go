@@ -125,19 +125,11 @@ type ExhibitionLog struct {
 	UpdatedAt pgtype.Timestamp
 }
 
-type ExhibitionReviewLog struct {
-	ID        int64
-	NodeID    int64
-	VisitorID int64
-	Rating    int32
-	CreatedAt pgtype.Timestamp
-	UpdatedAt pgtype.Timestamp
-}
-
 type Food struct {
 	ID        int64
 	Name      string
 	Price     int32
+	Quantity  int32
 	CreatedAt pgtype.Timestamp
 	UpdatedAt pgtype.Timestamp
 }
@@ -164,7 +156,6 @@ type Node struct {
 	Name      string
 	Ip        *netip.Addr
 	Type      NodeType
-	IsReview  pgtype.Bool
 	CreatedAt pgtype.Timestamp
 	UpdatedAt pgtype.Timestamp
 }
@@ -189,7 +180,7 @@ type Student struct {
 type Visitor struct {
 	ID        int64
 	ModelID   pgtype.Int8
-	Ip        netip.Addr
+	Ip        *netip.Addr
 	Random    int32
 	CreatedAt pgtype.Timestamp
 	UpdatedAt pgtype.Timestamp
