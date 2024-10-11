@@ -24,14 +24,14 @@ var (
 	databaseURL = os.Getenv("DATABASE_URL")
 )
 
-func newDatabase() *pgx.Conn {
-	db, err := pgx.Connect(context.Background(), databaseURL)
+func newDatabase(ctx context.Context) *pgx.Conn {
+	db, err := pgx.Connect(ctx, databaseURL)
 	if err != nil {
 		slog.Default().Error("failed to create connection pool", "error", err)
 
 	}
 
-	if db.Ping(context.Background()) != nil {
+	if db.Ping(ctx) != nil {
 		slog.Default().Error("failed to ping db", "error", err)
 
 	}
@@ -117,28 +117,29 @@ var (
 )
 
 var (
-	quantities = [MAX_GRADE][MAX_CLASS]int{
-		{40},
-		{},
-		{},
-		{},
-		{},
-		{},
-		{},
-		{34, 35, 38, 37},
-		{22, 21, 36, 35},
-		{42, 26, 27, 27},
-		{30, 28, 28, 34, 34},
-		{29, 24, 25, 34, 33},
-	}
-	createVisitorsParams = []int32{}
-	createStudentParams  = []sqlc.CreateStudentsParams{}
-	visitorHeader        = []string{"id", "random", "f3sid"}
-	visitorsCSV          = [][]string{}
-	// studentHeader        = []string{"id", "visitor_id", "grade", "class"}
-	// studentsCSV    = [][]string{}
-	f3sidHeader = []string{"f3sid"}
-	f3sidsCSV   = [][]string{}
+//	quantities = [MAX_GRADE][MAX_CLASS]int{
+//		{40},
+//		{},
+//		{},
+//		{},
+//		{},
+//		{},
+//		{},
+//		{34, 35, 38, 37},
+//		{22, 21, 36, 35},
+//		{42, 26, 27, 27},
+//		{30, 28, 28, 34, 34},
+//		{29, 24, 25, 34, 33},
+//	}
+//
+// createVisitorsParams = []int32{}
+// createStudentParams  = []sqlc.CreateStudentsParams{}
+// visitorHeader        = []string{"id", "random", "f3sid"}
+// visitorsCSV          = [][]string{}
+// studentHeader        = []string{"id", "visitor_id", "grade", "class"}
+// studentsCSV    = [][]string{}
+// f3sidHeader = []string{"f3sid"}
+// f3sidsCSV   = [][]string{}
 )
 
 const (
@@ -173,7 +174,7 @@ func main() {
 			// 			Aliases: []string{"g"},
 			// 			Usage:   "generate csv",
 			// 			Action: func(cCtx *cli.Context) error {
-			// 				ctx := context.Background()
+			// 				ctx := ctx
 
 			// 				// Initialize database connection
 			// 				db := newDatabase()
@@ -377,15 +378,15 @@ func main() {
 			// 	},
 			// },
 			{
-				Name:    "add",
-				Aliases: []string{"a"},
-				Usage:   "add an item",
+				Name:  "add",
+				Usage: "add an item",
 				Subcommands: []*cli.Command{
 					{
-						Name:    "node",
-						Aliases: []string{"n"},
-						Usage:   "add a new node",
+						Name:  "node",
+						Usage: "add a new node",
 						Action: func(cCtx *cli.Context) error {
+							ctx := context.Background()
+
 							err := nodeForm.Run()
 							if err != nil {
 								log.Fatal(err)
@@ -396,15 +397,15 @@ func main() {
 								log.Fatal(err)
 							}
 
-							db := newDatabase()
-							defer db.Close(context.Background())
-							q, err := db.Begin(context.Background())
+							db := newDatabase(ctx)
+							defer db.Close(ctx)
+							q, err := db.Begin(ctx)
 							if err != nil {
 								log.Fatal(err)
 							}
-							defer q.Rollback(context.Background())
+							defer q.Rollback(ctx)
 							sq := sqlc.New(q)
-							_, err = sq.CreateNode(context.Background(), sqlc.CreateNodeParams{
+							node, err := sq.CreateNode(ctx, sqlc.CreateNodeParams{
 								Key:  pgtype.Text{String: key, Valid: true},
 								Name: nodeName,
 								Ip:   &nodeIP,
@@ -413,7 +414,11 @@ func main() {
 							if err != nil {
 								log.Fatal(err)
 							}
-							err = q.Commit(context.Background())
+							_, err = sq.CreateBattery(ctx, node.ID)
+							if err != nil {
+								log.Fatal(err)
+							}
+							err = q.Commit(ctx)
 							if err != nil {
 								log.Fatal(err)
 							}
@@ -427,20 +432,22 @@ func main() {
 						Aliases: []string{"f"},
 						Usage:   "add a new food",
 						Action: func(cCtx *cli.Context) error {
+							ctx := context.Background()
+
 							err := foodForm.Run()
 							if err != nil {
 								log.Fatal(err)
 							}
 
-							db := newDatabase()
-							defer db.Close(context.Background())
-							q, err := db.Begin(context.Background())
+							db := newDatabase(ctx)
+							defer db.Close(ctx)
+							q, err := db.Begin(ctx)
 							if err != nil {
 								log.Fatal(err)
 							}
-							defer q.Rollback(context.Background())
+							defer q.Rollback(ctx)
 							sq := sqlc.New(q)
-							_, err = sq.CreateFood(context.Background(), sqlc.CreateFoodParams{
+							_, err = sq.CreateFood(ctx, sqlc.CreateFoodParams{
 								Name:  foodName,
 								Price: int32(foodPrice),
 							})
@@ -448,7 +455,7 @@ func main() {
 								log.Fatal(err)
 							}
 
-							err = q.Commit(context.Background())
+							err = q.Commit(ctx)
 							if err != nil {
 								log.Fatal(err)
 							}

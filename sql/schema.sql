@@ -31,7 +31,7 @@ CREATE TABLE node_foods (
 -- Battery table
 CREATE TABLE batteries (
     id BIGSERIAL PRIMARY KEY,
-    node_id BIGINT,
+    node_id BIGINT NOT NULL,
     level INTEGER,
     charging_time INTEGER,
     discharging_time INTEGER,

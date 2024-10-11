@@ -12,6 +12,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createBattery = `-- name: CreateBattery :one
+INSERT INTO batteries (node_id)
+VALUES ($1)
+RETURNING id, node_id, level, charging_time, discharging_time, charging, created_at, updated_at
+`
+
+func (q *Queries) CreateBattery(ctx context.Context, nodeID int64) (Battery, error) {
+	row := q.db.QueryRow(ctx, createBattery, nodeID)
+	var i Battery
+	err := row.Scan(
+		&i.ID,
+		&i.NodeID,
+		&i.Level,
+		&i.ChargingTime,
+		&i.DischargingTime,
+		&i.Charging,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createFood = `-- name: CreateFood :one
 INSERT INTO foods (name, price, quantity)
 VALUES ($1, $2, $3)

@@ -2,6 +2,10 @@
 INSERT INTO nodes (key, name, ip, type)
 VALUES ($1, $2, $3, $4)
 RETURNING *;
+-- name: CreateBattery :one
+INSERT INTO batteries (node_id)
+VALUES ($1)
+RETURNING *;
 -- name: CreateFood :one
 INSERT INTO foods (name, price, quantity)
 VALUES ($1, $2, $3)
