@@ -7,7 +7,6 @@ package sqlc
 
 import (
 	"context"
-	"net/netip"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -61,29 +60,24 @@ func (q *Queries) CreateFood(ctx context.Context, arg CreateFoodParams) (Food, e
 }
 
 const createNode = `-- name: CreateNode :one
-INSERT INTO nodes (key, name, ip, type)
-VALUES ($1, $2, $3, $4)
-RETURNING id, key, name, ip, type, created_at, updated_at
+INSERT INTO nodes (key, name, type)
+VALUES ($1, $2, $3)
+RETURNING id, key, otp, name, ip, type, created_at, updated_at
 `
 
 type CreateNodeParams struct {
 	Key  pgtype.Text
 	Name string
-	Ip   *netip.Addr
 	Type NodeType
 }
 
 func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, error) {
-	row := q.db.QueryRow(ctx, createNode,
-		arg.Key,
-		arg.Name,
-		arg.Ip,
-		arg.Type,
-	)
+	row := q.db.QueryRow(ctx, createNode, arg.Key, arg.Name, arg.Type)
 	var i Node
 	err := row.Scan(
 		&i.ID,
 		&i.Key,
+		&i.Otp,
 		&i.Name,
 		&i.Ip,
 		&i.Type,
@@ -91,6 +85,22 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, e
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const createOTP = `-- name: CreateOTP :one
+UPDATE nodes SET otp = $1, updated_at = now() WHERE id = $2 RETURNING otp
+`
+
+type CreateOTPParams struct {
+	Otp pgtype.Text
+	ID  int64
+}
+
+func (q *Queries) CreateOTP(ctx context.Context, arg CreateOTPParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, createOTP, arg.Otp, arg.ID)
+	var otp pgtype.Text
+	err := row.Scan(&otp)
+	return otp, err
 }
 
 const createStudent = `-- name: CreateStudent :one
@@ -129,4 +139,37 @@ func (q *Queries) CreateVisitor(ctx context.Context, random int32) (int64, error
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getNodes = `-- name: GetNodes :many
+SELECT id, key, otp, name, ip, type, created_at, updated_at FROM nodes
+`
+
+func (q *Queries) GetNodes(ctx context.Context) ([]Node, error) {
+	rows, err := q.db.Query(ctx, getNodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Node
+	for rows.Next() {
+		var i Node
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.Otp,
+			&i.Name,
+			&i.Ip,
+			&i.Type,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

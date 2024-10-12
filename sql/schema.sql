@@ -3,6 +3,7 @@ CREATE TYPE node_type AS ENUM ('ENTRY', 'FOODSTALL', 'EXHIBITION');
 CREATE TABLE nodes (
     id BIGSERIAL PRIMARY KEY,
     key TEXT UNIQUE,
+    otp TEXT UNIQUE,
     name TEXT NOT NULL,
     ip INET UNIQUE,
     type node_type NOT NULL,
@@ -31,7 +32,7 @@ CREATE TABLE node_foods (
 -- Battery table
 CREATE TABLE batteries (
     id BIGSERIAL PRIMARY KEY,
-    node_id BIGINT NOT NULL,
+    node_id BIGINT,
     level INTEGER,
     charging_time INTEGER,
     discharging_time INTEGER,
@@ -101,16 +102,24 @@ CREATE TABLE exhibition_logs (
     FOREIGN KEY (visitor_id) REFERENCES visitors(id)
 );
 -- Create indexes
-CREATE INDEX idx_visitors_ip ON visitors(ip);
-CREATE INDEX idx_visitors_id ON visitors(id);
-CREATE INDEX idx_visitors_id_random ON visitors(id, random);
-CREATE INDEX idx_nodes_id ON nodes(id);
-CREATE INDEX idx_entry_logs_node_id_type  ON entry_logs (node_id, type);
-CREATE INDEX idx_nodes_key ON nodes(key);
-CREATE INDEX idx_node_foods_food_id  ON node_foods (food_id);
-CREATE INDEX idx_nodes_ip ON nodes(ip);
-CREATE INDEX idx_food_stall_logs_node_food_id  ON food_stall_logs (node_food_id);
-CREATE INDEX idx_exhibition_logs_node_id  ON exhibition_logs (node_id);
-CREATE INDEX idx_entry_logs_node_id_type_created_at ON entry_logs (node_id, type, created_at);
-CREATE INDEX idx_food_stall_logs_node_food_id_created_at ON food_stall_logs(node_food_id, created_at);
+--
+-- Visitors Table
+CREATE INDEX idx_visitors_ip ON visitors (ip);
+CREATE INDEX idx_visitors_id ON visitors (id);
+CREATE INDEX idx_visitors_id_random ON visitors (id, random);
+-- Nodes Table
+CREATE INDEX idx_nodes_ip ON nodes (ip);
+CREATE INDEX idx_nodes_key ON nodes (key);
+-- EntryLogs Table
+CREATE INDEX idx_entry_logs_visitor_id ON entry_logs (visitor_id);
+CREATE INDEX idx_entry_logs_node_id ON entry_logs (node_id);
+CREATE INDEX idx_entry_logs_type ON entry_logs (type);
+CREATE INDEX idx_entry_logs_type_created_at ON entry_logs (type, created_at);
+-- FoodStallLogs Table
+CREATE INDEX idx_food_stall_logs_node_food_id ON food_stall_logs (node_food_id);
+CREATE INDEX idx_food_stall_logs_node_food_id_created_at ON food_stall_logs (node_food_id, created_at);
+-- ExhibitionLogs Table
+CREATE INDEX idx_exhibition_logs_node_id ON exhibition_logs (node_id);
 CREATE INDEX idx_exhibition_logs_node_id_created_at ON exhibition_logs (node_id, created_at);
+-- NodeFoods Table
+CREATE INDEX idx_node_foods_node_id ON node_foods (node_id);

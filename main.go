@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"net/netip"
 	"os"
 	"strconv"
 
@@ -40,11 +39,11 @@ func newDatabase(ctx context.Context) *pgx.Conn {
 }
 
 var (
-	nodeName     string
-	nodeType     sqlc.NodeType
-	nodeIPholder string
-	nodeIP       netip.Addr
-	nodeForm     = huh.NewForm(
+	nodeName string
+	nodeType sqlc.NodeType
+	// nodeIPholder string
+	// nodeIP       netip.Addr
+	nodeForm = huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Node Name").
@@ -66,19 +65,19 @@ var (
 				).
 				Value(&nodeType),
 		),
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Node IP").
-				Value(&nodeIPholder).
-				Validate(func(s string) error {
-					if parsedAddr, err := netip.ParseAddr(s); err != nil {
-						return fmt.Errorf("invalid IP address")
-					} else {
-						nodeIP = parsedAddr
-						return nil
-					}
-				}),
-		),
+		// huh.NewGroup(
+		// 	huh.NewInput().
+		// 		Title("Node IP").
+		// 		Value(&nodeIPholder).
+		// 		Validate(func(s string) error {
+		// 			if parsedAddr, err := netip.ParseAddr(s); err != nil {
+		// 				return fmt.Errorf("invalid IP address")
+		// 			} else {
+		// 				nodeIP = parsedAddr
+		// 				return nil
+		// 			}
+		// 		}),
+		// ),
 	).WithTheme(huh.ThemeBase16())
 
 	foodName        string
@@ -112,6 +111,21 @@ var (
 						}
 					}
 				}),
+		),
+	).WithTheme(huh.ThemeBase16())
+
+	nodes   []sqlc.Node
+	nodeID  int64
+	otpForm = huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[int64]().Value(&nodeID).OptionsFunc(func() []huh.Option[int64] {
+				opts := make([]huh.Option[int64], len(nodes))
+				for i, node := range nodes {
+					opts[i] = huh.NewOption(node.Name, node.ID)
+				}
+
+				return opts
+			}, &nodeID),
 		),
 	).WithTheme(huh.ThemeBase16())
 )
@@ -393,9 +407,6 @@ func main() {
 							}
 
 							key := randstr.String(32)
-							if err != nil {
-								log.Fatal(err)
-							}
 
 							db := newDatabase(ctx)
 							defer db.Close(ctx)
@@ -408,7 +419,7 @@ func main() {
 							node, err := sq.CreateNode(ctx, sqlc.CreateNodeParams{
 								Key:  pgtype.Text{String: key, Valid: true},
 								Name: nodeName,
-								Ip:   &nodeIP,
+								// Ip:   &nodeIP,
 								Type: nodeType,
 							})
 							if err != nil {
@@ -464,6 +475,52 @@ func main() {
 							return nil
 						},
 					},
+				},
+			},
+			{
+				Name:  "otp",
+				Usage: "generate otp",
+				Action: func(cCtx *cli.Context) error {
+					ctx := context.Background()
+
+					db := newDatabase(ctx)
+					defer db.Close(ctx)
+					q, err := db.Begin(ctx)
+					if err != nil {
+						log.Fatal(err)
+					}
+					defer q.Rollback(ctx)
+					sq := sqlc.New(q)
+
+					nodes, err = sq.GetNodes(ctx)
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					err = otpForm.Run()
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					otp, err := sq.CreateOTP(ctx, sqlc.CreateOTPParams{
+						Otp: pgtype.Text{
+							String: randstr.String(32),
+							Valid:  true,
+						},
+						ID: nodeID,
+					})
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					err = q.Commit(ctx)
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					fmt.Println("OTP generated successfully")
+					fmt.Println("OTP:", otp.String)
+					return nil
 				},
 			},
 		},

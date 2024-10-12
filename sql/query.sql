@@ -1,6 +1,6 @@
 -- name: CreateNode :one
-INSERT INTO nodes (key, name, ip, type)
-VALUES ($1, $2, $3, $4)
+INSERT INTO nodes (key, name, type)
+VALUES ($1, $2, $3)
 RETURNING *;
 -- name: CreateBattery :one
 INSERT INTO batteries (node_id)
@@ -24,3 +24,7 @@ VALUES ($1);
 -- name: CreateStudents :copyfrom
 INSERT INTO students (visitor_id, grade, class)
 VALUES ($1, $2, $3);
+-- name: GetNodes :many
+SELECT * FROM nodes;
+-- name: CreateOTP :one
+UPDATE nodes SET otp = $1, updated_at = now() WHERE id = $2 RETURNING otp;
