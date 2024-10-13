@@ -26,7 +26,7 @@ var (
 func newDatabase(ctx context.Context) *pgx.Conn {
 	db, err := pgx.Connect(ctx, databaseURL)
 	if err != nil {
-		slog.Default().Error("failed to create connection pool", "error", err)
+		slog.Default().Error("failed to create connection", "error", err)
 
 	}
 
@@ -419,7 +419,6 @@ func main() {
 							node, err := sq.CreateNode(ctx, sqlc.CreateNodeParams{
 								Key:  pgtype.Text{String: key, Valid: true},
 								Name: nodeName,
-								// Ip:   &nodeIP,
 								Type: nodeType,
 							})
 							if err != nil {
