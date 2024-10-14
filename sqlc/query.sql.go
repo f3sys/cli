@@ -11,26 +11,14 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createBattery = `-- name: CreateBattery :one
+const createBattery = `-- name: CreateBattery :exec
 INSERT INTO batteries (node_id)
 VALUES ($1)
-RETURNING id, node_id, level, charging_time, discharging_time, charging, created_at, updated_at
 `
 
-func (q *Queries) CreateBattery(ctx context.Context, nodeID int64) (Battery, error) {
-	row := q.db.QueryRow(ctx, createBattery, nodeID)
-	var i Battery
-	err := row.Scan(
-		&i.ID,
-		&i.NodeID,
-		&i.Level,
-		&i.ChargingTime,
-		&i.DischargingTime,
-		&i.Charging,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) CreateBattery(ctx context.Context, nodeID pgtype.Int8) error {
+	_, err := q.db.Exec(ctx, createBattery, nodeID)
+	return err
 }
 
 const createFood = `-- name: CreateFood :one
@@ -57,6 +45,22 @@ func (q *Queries) CreateFood(ctx context.Context, arg CreateFoodParams) (Food, e
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const createKey = `-- name: CreateKey :one
+UPDATE nodes SET key = $1, updated_at = now() WHERE id = $2 RETURNING key
+`
+
+type CreateKeyParams struct {
+	Key pgtype.Text
+	ID  int64
+}
+
+func (q *Queries) CreateKey(ctx context.Context, arg CreateKeyParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, createKey, arg.Key, arg.ID)
+	var key pgtype.Text
+	err := row.Scan(&key)
+	return key, err
 }
 
 const createNode = `-- name: CreateNode :one
@@ -98,6 +102,22 @@ type CreateOTPParams struct {
 
 func (q *Queries) CreateOTP(ctx context.Context, arg CreateOTPParams) (pgtype.Text, error) {
 	row := q.db.QueryRow(ctx, createOTP, arg.Otp, arg.ID)
+	var otp pgtype.Text
+	err := row.Scan(&otp)
+	return otp, err
+}
+
+const createOTPandDeleteKey = `-- name: CreateOTPandDeleteKey :one
+UPDATE nodes SET otp = $1, key = NULL, updated_at = now() WHERE id = $2 RETURNING otp
+`
+
+type CreateOTPandDeleteKeyParams struct {
+	Otp pgtype.Text
+	ID  int64
+}
+
+func (q *Queries) CreateOTPandDeleteKey(ctx context.Context, arg CreateOTPandDeleteKeyParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, createOTPandDeleteKey, arg.Otp, arg.ID)
 	var otp pgtype.Text
 	err := row.Scan(&otp)
 	return otp, err

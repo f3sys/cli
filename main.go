@@ -80,10 +80,12 @@ var (
 		// ),
 	).WithTheme(huh.ThemeBase16())
 
-	foodName        string
-	foodPriceholder string
-	foodPrice       int
-	foodForm        = huh.NewForm(
+	foodName           string
+	foodPriceHolder    string
+	foodPrice          int
+	foodQuantityHolder string
+	foodQuantity       int
+	foodForm           = huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Food Name").
@@ -98,7 +100,7 @@ var (
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Food Price").
-				Value(&foodPriceholder).
+				Value(&foodPriceHolder).
 				Validate(func(s string) error {
 					if s == "" {
 						return fmt.Errorf("food price cannot be empty")
@@ -107,6 +109,23 @@ var (
 							return fmt.Errorf("invalid food price")
 						} else {
 							foodPrice = parsedPrice
+							return nil
+						}
+					}
+				}),
+		),
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Food Quantity").
+				Value(&foodQuantityHolder).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("food quantity cannot be empty")
+					} else {
+						if parsedQuantity, err := strconv.Atoi(s); err != nil {
+							return fmt.Errorf("invalid food quantity")
+						} else {
+							foodQuantity = parsedQuantity
 							return nil
 						}
 					}
@@ -406,8 +425,6 @@ func main() {
 								log.Fatal(err)
 							}
 
-							key := randstr.String(32)
-
 							db := newDatabase(ctx)
 							defer db.Close(ctx)
 							q, err := db.Begin(ctx)
@@ -416,15 +433,19 @@ func main() {
 							}
 							defer q.Rollback(ctx)
 							sq := sqlc.New(q)
+
 							node, err := sq.CreateNode(ctx, sqlc.CreateNodeParams{
-								Key:  pgtype.Text{String: key, Valid: true},
 								Name: nodeName,
 								Type: nodeType,
+								Key:  pgtype.Text{String: randstr.String(32), Valid: true},
 							})
 							if err != nil {
 								log.Fatal(err)
 							}
-							_, err = sq.CreateBattery(ctx, node.ID)
+							err = sq.CreateBattery(ctx, pgtype.Int8{
+								Int64: node.ID,
+								Valid: true,
+							})
 							if err != nil {
 								log.Fatal(err)
 							}
@@ -438,9 +459,8 @@ func main() {
 						},
 					},
 					{
-						Name:    "food",
-						Aliases: []string{"f"},
-						Usage:   "add a new food",
+						Name:  "food",
+						Usage: "add a new food",
 						Action: func(cCtx *cli.Context) error {
 							ctx := context.Background()
 
@@ -457,10 +477,7 @@ func main() {
 							}
 							defer q.Rollback(ctx)
 							sq := sqlc.New(q)
-							_, err = sq.CreateFood(ctx, sqlc.CreateFoodParams{
-								Name:  foodName,
-								Price: int32(foodPrice),
-							})
+							_, err = sq.CreateFood(ctx, sqlc.CreateFoodParams{Name: foodName, Price: int32(foodPrice), Quantity: int32(foodQuantity)})
 							if err != nil {
 								log.Fatal(err)
 							}
@@ -502,11 +519,8 @@ func main() {
 					}
 
 					otp, err := sq.CreateOTP(ctx, sqlc.CreateOTPParams{
-						Otp: pgtype.Text{
-							String: randstr.String(32),
-							Valid:  true,
-						},
-						ID: nodeID,
+						Otp: pgtype.Text{String: randstr.String(32), Valid: true},
+						ID:  nodeID,
 					})
 					if err != nil {
 						log.Fatal(err)
