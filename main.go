@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"log/slog"
+	"math/rand/v2"
 	"os"
 	"strconv"
 
@@ -150,25 +152,32 @@ var (
 )
 
 var (
-//	quantities = [MAX_GRADE][MAX_CLASS]int{
-//		{40},
-//		{},
-//		{},
-//		{},
-//		{},
-//		{},
-//		{},
-//		{34, 35, 38, 37},
-//		{22, 21, 36, 35},
-//		{42, 26, 27, 27},
-//		{30, 28, 28, 34, 34},
-//		{29, 24, 25, 34, 33},
-//	}
-//
-// createVisitorsParams = []int32{}
-// createStudentParams  = []sqlc.CreateStudentsParams{}
-// visitorHeader        = []string{"id", "random", "f3sid"}
-// visitorsCSV          = [][]string{}
+	//	quantities = [MAX_GRADE][MAX_CLASS]int{
+	//		{40},
+	//		{},
+	//		{},
+	//		{},
+	//		{},
+	//		{},
+	//		{},
+	//		{34, 35, 38, 37},
+	//		{22, 21, 36, 35},
+	//		{42, 26, 27, 27},
+	//		{30, 28, 28, 34, 34},
+	//		{29, 24, 25, 34, 33},
+	//	}
+	//
+	// createVisitorsParams = []int32{}
+	// createStudentParams  = []sqlc.CreateStudentsParams{}
+	// visitorHeader        = []string{"id", "random", "f3sid"}
+	// visitorsCSV          = [][]string{}
+
+	createExtraVisitorParams = []int32{}
+	extraVisitorHeader       = []string{"id", "random", "f3sid"}
+	extraVisitorCSV          = [][]string{}
+	extraVisitorTypstHeader  = (`#import "@preview/codetastic:0.2.2": qrcode\n#set page(margin: 0pt)\n#align(center,table(align: center + horizon,columns: (50%, 50%),rows: (50%, 50%),`)
+	extraVisitorTypstFooter  = ("\n))")
+
 // studentHeader        = []string{"id", "visitor_id", "grade", "class"}
 // studentsCSV    = [][]string{}
 // f3sidHeader = []string{"f3sid"}
@@ -197,6 +206,130 @@ func Sqids() (*sqids.Sqids, error) {
 func main() {
 	app := &cli.App{
 		Commands: []*cli.Command{
+			{
+				Name:  "csv",
+				Usage: "csv operations",
+				Subcommands: []*cli.Command{
+					{
+						Name: "generate",
+						Subcommands: []*cli.Command{
+							{
+								Name: "visitors",
+								Action: func(cCtx *cli.Context) error {
+									ctx := context.Background()
+
+									// Initialize database connection
+									db := newDatabase(ctx)
+									defer db.Close(ctx)
+
+									// Start transaction
+									q, err := db.Begin(ctx)
+									if err != nil {
+										log.Fatal(err)
+									}
+									defer q.Rollback(ctx)
+
+									s := sqlc.New(q)
+
+									// Create CSV files
+									visitorFile, err := os.Create("extra_visitors.csv")
+									if err != nil {
+										log.Fatal(err)
+									}
+									defer visitorFile.Close()
+
+									// Create typst file
+									visitorTypstFile, err := os.Create("extra_visitors.typ")
+									if err != nil {
+										log.Fatal(err)
+									}
+									defer visitorTypstFile.Close()
+
+									// Create CSV writers
+									visitorWriter := csv.NewWriter(visitorFile)
+
+									// Write headers
+									if err := visitorWriter.Write(extraVisitorHeader); err != nil {
+										log.Fatal(err)
+									}
+
+									if _, err = visitorTypstFile.WriteString(extraVisitorTypstHeader); err != nil {
+										log.Fatal(err)
+									}
+
+									maxCount := 200
+									startingCount, err := s.GetLastVisitorId(ctx)
+									if err != nil {
+										log.Fatal(err)
+									}
+
+									sq, err := Sqids()
+									if err != nil {
+										log.Fatal(err)
+									}
+
+									for count := 0; count < maxCount; count++ {
+										random := rand.Int32N(99)
+
+										createExtraVisitorParams = append(createExtraVisitorParams, random)
+
+										f3sid, err := sq.Encode([]uint64{uint64(int(startingCount) + count + 1), uint64(random)})
+										if err != nil {
+											log.Fatal(err)
+										}
+
+										visitorTypstFile.Write([]byte(fmt.Sprintf(`\n[#grid([#qrcode("%s", ecl: "q", width: 20em)],[#text(size: 2em, font: "Noto Sans Mono", [%s])])],`, f3sid, f3sid)))
+
+										extraVisitorCSV = append(extraVisitorCSV, []string{
+											// strconv.Itoa(int(count)),
+											strconv.Itoa(int(startingCount) + count + 1),
+											strconv.Itoa(int(random)),
+											f3sid,
+										})
+									}
+
+									numberOfCopy, err := s.CreateVisitors(ctx, createExtraVisitorParams)
+									if err != nil {
+										log.Fatal(err)
+									}
+
+									endingCount, err := s.GetLastVisitorId(ctx)
+									if err != nil {
+										log.Fatal(err)
+									}
+
+									slog.Default().Info("created visitors", "number_of_copy", numberOfCopy)
+									slog.Default().Info("starting count", "starting_count", startingCount)
+									slog.Default().Info("ending count", "ending_count", endingCount)
+
+									// Commit transaction
+									q.Commit(ctx)
+
+									// Write all extraVisitors to their respective files
+									if err := visitorWriter.WriteAll(extraVisitorCSV); err != nil {
+										log.Fatal(err)
+									}
+
+									if _, err = visitorTypstFile.WriteString(extraVisitorTypstFooter); err != nil {
+										log.Fatal(err)
+									}
+
+									// Flush writers before closing files
+									visitorWriter.Flush()
+									visitorTypstFile.Sync()
+
+									// Check for errors in writing
+									if err := visitorWriter.Error(); err != nil {
+										log.Fatal(err)
+									}
+
+									return nil
+								},
+							},
+						},
+					},
+				},
+			},
 			// {
 			// 	Name:    "csv",
 			// 	Aliases: []string{"c"},
