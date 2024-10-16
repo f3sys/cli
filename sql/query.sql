@@ -17,6 +17,8 @@ RETURNING id;
 INSERT INTO students (visitor_id, grade, class)
 VALUES ($1, $2, $3)
 RETURNING id;
+-- name: GetLastVisitorId :one
+SELECT (id) FROM visitors ORDER BY id DESC LIMIT 1;
 -- name: CreateVisitors :copyfrom
 INSERT INTO visitors (random)
 VALUES ($1);

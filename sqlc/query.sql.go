@@ -161,6 +161,17 @@ func (q *Queries) CreateVisitor(ctx context.Context, random int32) (int64, error
 	return id, err
 }
 
+const getLastVisitorId = `-- name: GetLastVisitorId :one
+SELECT (id) FROM visitors ORDER BY id DESC LIMIT 1
+`
+
+func (q *Queries) GetLastVisitorId(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, getLastVisitorId)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getNodes = `-- name: GetNodes :many
 SELECT id, key, otp, name, ip, type, created_at, updated_at FROM nodes
 `

@@ -1,4 +1,4 @@
-CREATE TYPE node_type AS ENUM ('ENTRY', 'FOODSTALL', 'EXHIBITION');
+CREATE TYPE node_type AS ENUM ('ENTRY', 'FOODSTALL', 'EXHIBITION', 'BATTERY');
 -- Node table
 CREATE TABLE nodes (
     id BIGSERIAL PRIMARY KEY,
@@ -107,6 +107,8 @@ CREATE TABLE exhibition_logs (
 CREATE INDEX idx_visitors_ip ON visitors (ip);
 CREATE INDEX idx_visitors_id ON visitors (id);
 CREATE INDEX idx_visitors_id_random ON visitors (id, random);
+-- Students Table
+CREATE INDEX idx_students_visitor_id ON students (visitor_id);
 -- Nodes Table
 CREATE INDEX idx_nodes_ip ON nodes (ip);
 CREATE INDEX idx_nodes_key ON nodes (key);
